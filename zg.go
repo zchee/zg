@@ -6,9 +6,17 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"text/template"
 )
+
+// Commands lists the available commands and help topics.
+// The order here is the order in which they are printed by 'zg help'.
+var commands = []*Command{
+	cmdAdd,
+	cmdVersion,
+}
 
 type Command struct {
 	// Run runs the command.
@@ -30,29 +38,8 @@ type Command struct {
 	Flag flag.FlagSet
 }
 
-// Name returns the name of a command.
-func (c *Command) Name() string {
-	name := c.Usage
-	i := strings.Index(name, " ")
-	if i >= 0 {
-		name = name[:i]
-	}
-	return name
-}
-
-// UsageExit prints usage information and exits.
-func (c *Command) UsageExit() {
-	fmt.Fprintf(os.Stderr, "Usage: %s %s\n\n", os.Args[0], c.Usage)
-	fmt.Fprintf(os.Stderr, "Run '%s help %s' for help.\n", os.Args[0], c.Name())
-	os.Exit(2)
-}
-
-// Commands lists the available commands and help topics.
-// The order here is the order in which they are printed
-// by 'godep help'.
-var commands = []*Command{
-	cmdAdd,
-	cmdVersion,
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 func main() {
@@ -60,6 +47,7 @@ func main() {
 	flag.Parse()
 	log.SetFlags(0)
 	log.SetPrefix("%zg: ")
+
 	args := flag.Args()
 	if len(args) < 1 {
 		usageExit()
@@ -84,23 +72,15 @@ func main() {
 	os.Exit(2)
 }
 
-var usageTemplate = `
-zg is the new z, yo
-
-Usage:
-    zg command [arguments]
-
-The commands are:{{range .}}
-    {{.Name | printf "%-8s"}} {{.Short}}{{end}}
-
-Use "zg help [command]" for more information about a command.
-`
-
-var helpTemplate = `
-Usage: zg {{.Usage}}
-
-{{.Long | trim}}
-`
+// Name returns the name of a command.
+func (c *Command) Name() string {
+	name := c.Usage
+	i := strings.Index(name, " ")
+	if i >= 0 {
+		name = name[:i]
+	}
+	return name
+}
 
 func help(args []string) {
 	if len(args) == 0 {
@@ -118,6 +98,13 @@ func help(args []string) {
 			return
 		}
 	}
+}
+
+// UsageExit prints usage information and exits.
+func (c *Command) UsageExit() {
+	fmt.Fprintf(os.Stderr, "Usage: %s %s\n\n", os.Args[0], c.Usage)
+	fmt.Fprintf(os.Stderr, "Run '%s help %s' for help.\n", os.Args[0], c.Name())
+	os.Exit(2)
 }
 
 func usageExit() {
@@ -140,3 +127,21 @@ func tmpl(w io.Writer, text string, data interface{}) {
 		panic(err)
 	}
 }
+
+var usageTemplate = `
+zg is the new z, yo
+
+Usage:
+    zg command [arguments]
+
+The commands are:{{range .}}
+    {{.Name | printf "%-8s"}} {{.Short}}{{end}}
+
+Use "zg help [command]" for more information about a command.
+`
+
+var helpTemplate = `
+Usage: zg {{.Usage}}
+
+{{.Long | trim}}
+`
