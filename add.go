@@ -17,23 +17,23 @@ If you specify a path use "-p" flag, It will write its path instead current path
 }
 
 var (
-	path string
-	cp   string
+	flagPath    string
+	currentPath string
 )
 
 func init() {
-	cmdAdd.Flag.StringVar(&path, "p", getCurrentPath(), "Add the specification path to the zg data")
+	cmdAdd.Flag.StringVar(&flagPath, "p", getCurrentPath(), "Add the specification path to the zg data")
 }
 
 func runAdd(cmd *Command, args []string) {
 	f, _ := getDataFile()
 
-	if len(path) == 0 {
-		cp = getCurrentPath()
+	if len(flagPath) == 0 {
+		currentPath = getCurrentPath()
 	} else {
-		cp = path
+		currentPath = flagPath
 	}
-	cpvec := *(*[]byte)(unsafe.Pointer(&cp))
+	cpvec := *(*[]byte)(unsafe.Pointer(&currentPath))
 
 	fd, err := os.OpenFile(f.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
