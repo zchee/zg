@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"time"
 	"unsafe"
 )
 
@@ -26,8 +28,6 @@ func init() {
 }
 
 func runAdd(cmd *Command, args []string) {
-	f, _ := getDataFile()
-
 	if len(flagPath) == 0 {
 		currentPath = getCurrentPath()
 	} else {
@@ -35,11 +35,17 @@ func runAdd(cmd *Command, args []string) {
 	}
 	cpvec := *(*[]byte)(unsafe.Pointer(&currentPath))
 
+	f, _ := getDataFile()
 	fd, err := os.OpenFile(f.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer fd.Close()
+
+	fmt.Println("Last acccess Unix: ", getModifyTime(fd).Unix())
+	fmt.Println("Last acccess Human: ", getModifyTime(fd))
+	r := frecent(fd, getModifyTime(fd).Unix())
+	fmt.Println(r)
 
 	if _, err = fd.Write(cpvec); err != nil {
 		log.Fatal(err)
@@ -58,4 +64,37 @@ func getCurrentPath() string {
 	currentPath, _ := os.Getwd()
 
 	return currentPath + "\n"
+}
+
+func getModifyTime(fd *os.File) time.Time {
+	mt, _ := fd.Stat()
+
+	return mt.ModTime()
+}
+
+func frecent(fd *os.File, rank int64) int64 {
+	dx := getModifyTime(fd).Unix() - time.Now().Unix()
+
+	switch true {
+
+	// Accessed less than an hour ago
+	case dx < 3:
+		fmt.Println("an hour ago")
+		return rank * 4
+
+	// Accessed less than an day ago
+	case dx < 86400:
+		fmt.Println("an day ago")
+		return rank * 2
+
+	// Accessed less than an week ago
+	case dx < 604800:
+		fmt.Println("an week ago")
+		return rank / 2
+
+	// Accessed more than an week ago
+	default:
+		fmt.Println("too old")
+		return rank / 4
+	}
 }
