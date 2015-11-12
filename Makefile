@@ -120,16 +120,16 @@ run: vet
 		$(GO_RUN) $(MAINFILE_NAME) || exit 1; \
 	done
 
-test: deps
-	@for p in $(PACKAGE_LIST); do \
-		echo "$(CBLUE)==>$(CRESET) Unit Testing $(CGREEN)$$p$(CRESET) ..."; \
-		$(GO_TEST) $(TOP_PACKAGE_DIR)/$$p || exit 1; \
-	done
-
-test-verbose: deps
+test:
 	@for p in $(PACKAGE_LIST); do \
 		echo "$(CBLUE)==>$(CRESET) Unit Testing $(CGREEN)$$p$(CRESET) ..."; \
 		$(GO_TEST_VERBOSE) $(TOP_PACKAGE_DIR)/$$p || exit 1; \
+	done
+
+test-simple: deps
+	@for p in $(PACKAGE_LIST); do \
+		echo "$(CBLUE)==>$(CRESET) Unit Testing $(CGREEN)$$p$(CRESET) ..."; \
+		$(GO_TEST) $(TOP_PACKAGE_DIR)/$$p || exit 1; \
 	done
 
 deps:
