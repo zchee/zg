@@ -1,7 +1,9 @@
 package main
 
+import "C"
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -28,13 +30,6 @@ func init() {
 }
 
 func runAdd(cmd *Command, args []string) {
-	if len(flagPath) == 0 {
-		currentPath = getCurrentPath()
-	} else {
-		currentPath = flagPath
-	}
-	cpvec := *(*[]byte)(unsafe.Pointer(&currentPath))
-
 	f, _ := getDataFile()
 	fd, err := os.OpenFile(f.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -42,14 +37,35 @@ func runAdd(cmd *Command, args []string) {
 	}
 	defer fd.Close()
 
-	fmt.Println("Last acccess Unix: ", getModifyTime(fd).Unix())
-	fmt.Println("Last acccess Human: ", getModifyTime(fd))
-	r := frecent(fd, getModifyTime(fd).Unix())
-	fmt.Println(r)
+	if len(flagPath) == 0 {
+		currentPath = getCurrentPath()
+	} else {
+		currentPath = flagPath
+	}
+	cpvec := *(*[]byte)(unsafe.Pointer(&currentPath))
 
 	if _, err = fd.Write(cpvec); err != nil {
 		log.Fatal(err)
 	}
+
+	// TODO: Which is faster?
+	// ioutil.ReadDir(getCurrentPath())
+	// or
+	// ioutil.ReadDir(string(cpvec))
+
+	// fileAll, _ := ioutil.ReadDir(currentPath)
+
+	// sort.Sort(sort.Reverse(fileTime))
+	// fmt.Println(fileTime)
+
+	// files, _ := ioutil.ReadDir(currentPath)
+	// fmt.Println("files: ", files)
+	// fmt.Println("cpvec: ", cpvec)
+	// fmt.Println("string cpvec: ", string(cpvec))
+
+	// files, _ := ioutil.ReadDir("/Users/zchee/go/src/github.com/zchee/zg")
+	// r := frecent(fd, getModifyTime(fd).Unix())
+	// fmt.Println(r)
 }
 
 func getCurrentPath() string {
@@ -63,13 +79,36 @@ func getCurrentPath() string {
 	// fmt.Printf("pc: %s\nfile:%s\nline:%s\nok:%s", pc, filename, line, ok)
 	currentPath, _ := os.Getwd()
 
-	return currentPath + "\n"
+	return currentPath + "/"
 }
 
 func getModifyTime(fd *os.File) time.Time {
 	mt, _ := fd.Stat()
 
 	return mt.ModTime()
+}
+
+func getFileList(currentPath string) {
+	// path := os.Args[1]
+	// files, _ := ioutil.ReadDir(path)
+	// for _, f := range files {
+	// 	fmt.Println(f.Name())
+	// }
+	cp := &currentPath
+	fmt.Println(currentPath)
+	files, _ := ioutil.ReadDir(*cp)
+	// files, _ := ioutil.ReadDir("/Users/zchee/go/src/github.com/zchee/zg")
+	fmt.Println(files)
+
+	// ModifyTimeInt64 slice
+	// mti := make([]int64, 0)
+	// for _, f := range files {
+	// 	fmt.Println("filename", f.Name())
+	// 	fmt.Println("file time", f.ModTime().Unix())
+	// 	mti = append(mti, f.ModTime().Unix())
+	// }
+	// fmt.Println("CurrentPath: ", cp)
+	// fmt.Println("ModifyTimeInt64 slice", mti)
 }
 
 func frecent(fd *os.File, rank int64) int64 {
