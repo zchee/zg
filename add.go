@@ -3,11 +3,10 @@ package main
 import "C"
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"time"
-	"unsafe"
 )
 
 var cmdAdd = &Command{
@@ -21,15 +20,39 @@ If you specify a path use "-p" flag, It will write its path instead current path
 }
 
 var (
-	flagPath    string
-	currentPath string
+	flagPath string
+	cDir     string
 )
 
+// for sort ModTime().Unix() format
+type byName []os.FileInfo
+
+func (f byName) Len() int {
+	return len(f)
+}
+func (f byName) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+func (f byName) Less(i, j int) bool {
+	return f[j].ModTime().Unix() < f[i].ModTime().Unix()
+}
+
 func init() {
-	cmdAdd.Flag.StringVar(&flagPath, "p", getCurrentPath(), "Add the specification path to the zg data")
+	cmdAdd.Flag.StringVar(&flagPath, "p", getCurrentDir(), "Add the specification path to the zg data")
 }
 
 func runAdd(cmd *Command, args []string) {
+	// z.sh original format sample:
+	// path|rank|TimeUnix
+	// e.g.: /Users/zchee/go/src/github.com/zchee/zg|1252.96|1447342208
+
+	// Parse flag, get current directory path
+	if len(flagPath) == 0 {
+		cDir = getCurrentDir()
+	} else {
+		cDir = flagPath
+	}
+
 	f, _ := getDataFile()
 	fd, err := os.OpenFile(f.Name(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -37,38 +60,36 @@ func runAdd(cmd *Command, args []string) {
 	}
 	defer fd.Close()
 
-	if len(flagPath) == 0 {
-		currentPath = getCurrentPath()
-	} else {
-		currentPath = flagPath
-	}
-	cpvec := *(*[]byte)(unsafe.Pointer(&currentPath))
+	lf := getLastModifyFile(cDir)
 
-	if _, err = fd.Write(cpvec); err != nil {
-		log.Fatal(err)
-	}
+	r := frecent(lf, 4290)
+	fmt.Println(r)
 
-	// TODO: Which is faster?
-	// ioutil.ReadDir(getCurrentPath())
-	// or
-	// ioutil.ReadDir(string(cpvec))
+	// StringToSlicePointerByte
+	// Non memory copy when cast string to []byte
+	// cpvec := *(*[]byte)(unsafe.Pointer(&cDir))
 
-	// fileAll, _ := ioutil.ReadDir(currentPath)
-
-	// sort.Sort(sort.Reverse(fileTime))
-	// fmt.Println(fileTime)
-
-	// files, _ := ioutil.ReadDir(currentPath)
-	// fmt.Println("files: ", files)
-	// fmt.Println("cpvec: ", cpvec)
-	// fmt.Println("string cpvec: ", string(cpvec))
-
-	// files, _ := ioutil.ReadDir("/Users/zchee/go/src/github.com/zchee/zg")
-	// r := frecent(fd, getModifyTime(fd).Unix())
-	// fmt.Println(r)
+	// Write unsafe []byte
+	// if _, err = fd.Write(cpvec); err != nil {
+	// 	log.Fatal(err)
+	// }
 }
 
-func getCurrentPath() string {
+func ReadDirSortByUnixTime(dirname string) ([]os.FileInfo, error) {
+	f, err := os.Open(dirname)
+	if err != nil {
+		return nil, err
+	}
+	list, err := f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	sort.Sort(byName(list))
+	return list, nil
+}
+
+func getCurrentDir() string {
 	// TODO: Which is faster?
 	// dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	// if err != nil {
@@ -77,9 +98,9 @@ func getCurrentPath() string {
 	// _, filename, _, _ := runtime.Caller(1)
 	// f, err = os.Open(filepath.Join(filepath.Dir(filename), ""))
 	// fmt.Printf("pc: %s\nfile:%s\nline:%s\nok:%s", pc, filename, line, ok)
-	currentPath, _ := os.Getwd()
+	cDir, _ := os.Getwd()
 
-	return currentPath + "/"
+	return cDir + "/"
 }
 
 func getModifyTime(fd *os.File) time.Time {
@@ -88,16 +109,15 @@ func getModifyTime(fd *os.File) time.Time {
 	return mt.ModTime()
 }
 
-func getFileList(currentPath string) {
+func getFile(cDir string) {
 	// path := os.Args[1]
 	// files, _ := ioutil.ReadDir(path)
 	// for _, f := range files {
 	// 	fmt.Println(f.Name())
 	// }
-	cp := &currentPath
-	fmt.Println(currentPath)
-	files, _ := ioutil.ReadDir(*cp)
-	// files, _ := ioutil.ReadDir("/Users/zchee/go/src/github.com/zchee/zg")
+	cp := &cDir
+	fmt.Println(cDir)
+	files, _ := ReadDirSortByUnixTime(*cp)
 	fmt.Println(files)
 
 	// ModifyTimeInt64 slice
@@ -111,8 +131,8 @@ func getFileList(currentPath string) {
 	// fmt.Println("ModifyTimeInt64 slice", mti)
 }
 
-func frecent(fd *os.File, rank int64) int64 {
-	dx := getModifyTime(fd).Unix() - time.Now().Unix()
+func frecent(fd int64, rank int64) int64 {
+	dx := fd - time.Now().Unix()
 
 	switch true {
 
@@ -136,4 +156,16 @@ func frecent(fd *os.File, rank int64) int64 {
 		fmt.Println("too old")
 		return rank / 4
 	}
+}
+
+func getLastModifyFile(cDir string) int64 {
+	var err error
+
+	lastModFile := make([]os.FileInfo, 1)
+	lastModFile, err = ReadDirSortByUnixTime(cDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return lastModFile[0].ModTime().Unix()
 }
